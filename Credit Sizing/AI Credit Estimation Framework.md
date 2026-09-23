@@ -3,6 +3,7 @@
 
 Version: 1.0
 Owner: Product Management
+
 Purpose: Replace or augment Story Points with a measurable AI consumption model for planning, budgeting, forecasting, and governance.
 
 ---
