@@ -1,0 +1,70 @@
+default_platform(:android)
+
+platform :android do
+  desc "Runs DSP and code verification"
+  lane :test do
+    sh("node ../test/dsp_math_test.js")
+  end
+
+  desc "Build Android App Bundle for Google Play Store"
+  lane :build_release do
+    gradle(
+      task: "bundle",
+      build_type: "Release"
+    )
+  end
+
+  desc "Deploy to Google Play Internal Testing Track"
+  lane :deploy_internal do
+    build_release
+    upload_to_play_store(
+      track: "internal",
+      aab: "build/app/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Promote Internal Track to Production on Google Play"
+  lane :deploy_production do
+    upload_to_play_store(
+      track: "production",
+      track_promote_to: "production",
+      rollout: "0.1" # 10% staged rollout
+    )
+  end
+end
+
+platform :ios do
+  desc "Runs DSP and code verification"
+  lane :test do
+    sh("node ../test/dsp_math_test.js")
+  end
+
+  desc "Build iOS IPA and Archive for App Store"
+  lane :build_release do
+    build_app(
+      workspace: "ios/Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store"
+    )
+  end
+
+  desc "Deploy to Apple TestFlight"
+  lane :deploy_testflight do
+    build_release
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Submit to Apple App Store for Review"
+  lane :deploy_app_store do
+    deliver(
+      force: false,
+      submit_for_review: true,
+      automatic_release: true
+    )
+  end
+end

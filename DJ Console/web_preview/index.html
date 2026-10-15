@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DJ Console Mobile - Interactive Audio Testbed</title>
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --panel: #161a22;
+      --deck-a: #00e5ff;
+      --deck-b: #ff0055;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #ff9100;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+    }
+    header {
+      width: 100%;
+      max-width: 1000px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 1px; }
+    .badge {
+      background: #238636;
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .console-grid {
+      display: grid;
+      grid-template-columns: 1fr 220px 1fr;
+      gap: 16px;
+      width: 100%;
+      max-width: 1000px;
+    }
+    .deck-panel {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .deck-a-border { border-top: 4px solid var(--deck-a); }
+    .deck-b-border { border-top: 4px solid var(--deck-b); }
+    .deck-title {
+      align-self: flex-start;
+      font-weight: 800;
+      font-size: 1rem;
+      margin-bottom: 8px;
+    }
+    .turntable-container {
+      width: 220px;
+      height: 220px;
+      position: relative;
+      margin: 12px 0;
+      cursor: grab;
+    }
+    .turntable-container:active { cursor: grabbing; }
+    .platter {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: radial-gradient(circle, #2a2e39 0%, #15181e 60%, #0a0c0e 100%);
+      border: 4px solid #3b4252;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: transform 0.05s linear;
+    }
+    .vinyl-grooves {
+      position: absolute;
+      inset: 16px;
+      border-radius: 50%;
+      border: 1px dashed rgba(255,255,255,0.08);
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+    }
+    .vinyl-label {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.75rem;
+      color: #000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    .marker {
+      position: absolute;
+      top: 6px;
+      width: 4px;
+      height: 26px;
+      background: #fff;
+      border-radius: 2px;
+      box-shadow: 0 0 8px rgba(255,255,255,0.8);
+    }
+    .waveform-canvas {
+      width: 100%;
+      height: 60px;
+      background: #090b0e;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .deck-controls {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 10px 0;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.05s;
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn-play { background: #238636; color: #fff; }
+    .btn-play.playing { background: #da3633; }
+    .btn-cue { background: #d29922; color: #000; }
+    .pitch-slider-wrap {
+      width: 100%;
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .slider-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    /* Mixer Center Strip */
+    .mixer-panel {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 16px 12px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .eq-group {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .eq-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .eq-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+    }
+    .kill-btn {
+      background: #21262d;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.65rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .kill-btn.active {
+      background: #da3633;
+      color: #fff;
+      border-color: #f85149;
+    }
+    .crossfader-wrap {
+      width: 100%;
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .curve-select {
+      width: 100%;
+      background: #21262d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      margin-top: 6px;
+    }
+    .status-bar {
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>DJ CONSOLE PRO <span style="font-weight: 300; font-size: 0.85rem; color: var(--text-muted);">| Dual-Deck Core</span></h1>
+  </div>
+  <div class="badge" id="audioStatusBadge">CLICK TO ACTIVATE AUDIO</div>
+</header>
+
+<div class="console-grid">
+  <!-- DECK A -->
+  <div class="deck-panel deck-a-border">
+    <div class="deck-title" style="color: var(--deck-a);">DECK A</div>
+    <canvas id="waveformA" class="waveform-canvas" width="300" height="60"></canvas>
+    
+    <div class="turntable-container" id="turntableA">
+      <div class="platter" id="platterA">
+        <div class="vinyl-grooves"></div>
+        <div class="marker"></div>
+        <div class="vinyl-label" style="background: var(--deck-a);">DECK A</div>
+      </div>
+    </div>
+
+    <div class="deck-controls">
+      <button class="btn btn-cue" id="cueBtnA">CUE</button>
+      <button class="btn btn-play" id="playBtnA">PLAY</button>
+    </div>
+
+    <div class="pitch-slider-wrap">
+      <div class="slider-label"><span>TEMPO</span><span id="rateLabelA">0.0%</span></div>
+      <input type="range" id="rateSliderA" min="-0.16" max="0.16" step="0.005" value="0">
+    </div>
+  </div>
+
+  <!-- CENTER MIXER -->
+  <div class="mixer-panel">
+    <div style="font-weight: 800; font-size: 0.85rem; letter-spacing: 1px; color: var(--text-muted);">MASTER MIXER</div>
+
+    <div class="eq-group">
+      <!-- HIGH EQ -->
+      <div class="eq-row">
+        <div class="eq-label-row">
+          <span>HIGH (3.2kHz)</span>
+          <button class="kill-btn" id="killHighA">KILL</button>
+        </div>
+        <input type="range" id="eqHighA" min="-24" max="6" step="1" value="0">
+      </div>
+
+      <!-- MID EQ -->
+      <div class="eq-row">
+        <div class="eq-label-row">
+          <span>MID (1.2kHz)</span>
+          <button class="kill-btn" id="killMidA">KILL</button>
+        </div>
+        <input type="range" id="eqMidA" min="-24" max="6" step="1" value="0">
+      </div>
+
+      <!-- LOW EQ -->
+      <div class="eq-row">
+        <div class="eq-label-row">
+          <span>LOW (300Hz)</span>
+          <button class="kill-btn" id="killLowA">KILL</button>
+        </div>
+        <input type="range" id="eqLowA" min="-24" max="6" step="1" value="0">
+      </div>
+    </div>
+
+    <div class="crossfader-wrap">
+      <div class="slider-label"><span>CROSSFADER</span><span id="xfaderVal">CENTER</span></div>
+      <input type="range" id="xfader" min="-1" max="1" step="0.02" value="0">
+      
+      <select id="curveSelect" class="curve-select">
+        <option value="smooth">Constant Power (Smooth Blend)</option>
+        <option value="linear">Linear Mix</option>
+        <option value="scratch_cut">Sharp Scratch Cut</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- DECK B -->
+  <div class="deck-panel deck-b-border">
+    <div class="deck-title" style="color: var(--deck-b);">DECK B</div>
+    <canvas id="waveformB" class="waveform-canvas" width="300" height="60"></canvas>
+    
+    <div class="turntable-container" id="turntableB">
+      <div class="platter" id="platterB">
+        <div class="vinyl-grooves"></div>
+        <div class="marker"></div>
+        <div class="vinyl-label" style="background: var(--deck-b);">DECK B</div>
+      </div>
+    </div>
+
+    <div class="deck-controls">
+      <button class="btn btn-cue" id="cueBtnB">CUE</button>
+      <button class="btn btn-play" id="playBtnB">PLAY</button>
+    </div>
+
+    <div class="pitch-slider-wrap">
+      <div class="slider-label"><span>TEMPO</span><span id="rateLabelB">0.0%</span></div>
+      <input type="range" id="rateSliderB" min="-0.16" max="0.16" step="0.005" value="0">
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  Touch/drag platters to scratch with vinyl inertia decay • 3-band biquad filters with -inf dB kill buttons • Real-time crossfader summing
+</div>
+
+<script>
+// Web Audio DSP Engine Mirror
+let audioCtx = null;
+
+class AudioDeck {
+  constructor(name, color) {
+    this.name = name;
+    this.color = color;
+    this.isPlaying = false;
+    this.rate = 1.0;
+    this.angle = 0;
+    this.scratchVelocity = 0;
+    this.isInertia = false;
+    this.isDragging = false;
+    this.lastPointerAngle = 0;
+
+    // EQ State
+    this.gainLow = 0;
+    this.gainMid = 0;
+    this.gainHigh = 0;
+    this.killLow = false;
+    this.killMid = false;
+    this.killHigh = false;
+  }
+
+  initAudio(ctx, masterNode) {
+    this.ctx = ctx;
+    this.masterNode = masterNode;
+
+    // 3-Band Biquad Isolator Nodes
+    this.filterLow = ctx.createBiquadFilter();
+    this.filterLow.type = 'lowshelf';
+    this.filterLow.frequency.value = 300;
+
+    this.filterMid = ctx.createBiquadFilter();
+    this.filterMid.type = 'peaking';
+    this.filterMid.frequency.value = 1200;
+    this.filterMid.Q.value = 1.0;
+
+    this.filterHigh = ctx.createBiquadFilter();
+    this.filterHigh.type = 'highshelf';
+    this.filterHigh.frequency.value = 3200;
+
+    this.deckGain = ctx.createGain();
+
+    // Chain: Filters -> Deck Gain -> Master Bus
+    this.filterLow.connect(this.filterMid);
+    this.filterMid.connect(this.filterHigh);
+    this.filterHigh.connect(this.deckGain);
+    this.deckGain.connect(masterNode);
+
+    // Synthesize 4-bar 128 BPM electronic loop
+    this.createSyntheticBuffer();
+  }
+
+  createSyntheticBuffer() {
+    const sr = this.ctx.sampleRate;
+    const duration = 8.0; // 8 seconds loop
+    const buffer = this.ctx.createBuffer(2, sr * duration, sr);
+    const left = buffer.getChannelData(0);
+    const right = buffer.getChannelData(1);
+
+    const beatLen = (60 / 128) * sr;
+    for (let i = 0; i < buffer.length; i++) {
+      const beatPhase = i % beatLen;
+      const t = beatPhase / sr;
+
+      // Kick drum
+      let kick = 0;
+      if (t < 0.2) {
+        const freq = 140 * Math.exp(-t * 22) + 40;
+        kick = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t * 14) * 0.9;
+      }
+
+      // Snare / Clap on beats 2 and 4
+      let snare = 0;
+      const barPhase = i % (beatLen * 4);
+      if ((barPhase > beatLen && barPhase < beatLen * 2) || (barPhase > beatLen * 3)) {
+        const snareT = (barPhase % beatLen) / sr;
+        if (snareT < 0.15) {
+          snare = (Math.random() * 2 - 1) * Math.exp(-snareT * 25) * 0.4;
+        }
+      }
+
+      left[i] = kick + snare;
+      right[i] = kick + snare;
+    }
+    this.audioBuffer = buffer;
+  }
+
+  startPlayback() {
+    if (!this.ctx) return;
+    if (this.srcNode) {
+      this.srcNode.stop();
+      this.srcNode.disconnect();
+    }
+    this.srcNode = this.ctx.createBufferSource();
+    this.srcNode.buffer = this.audioBuffer;
+    this.srcNode.loop = true;
+    this.srcNode.playbackRate.value = this.rate;
+    this.srcNode.connect(this.filterLow);
+    this.srcNode.start();
+    this.isPlaying = true;
+  }
+
+  pausePlayback() {
+    if (this.srcNode) {
+      this.srcNode.stop();
+      this.srcNode.disconnect();
+      this.srcNode = null;
+    }
+    this.isPlaying = false;
+  }
+
+  updatePlaybackRate(speed) {
+    if (this.srcNode && this.isPlaying) {
+      // AudioParam ramp for smooth vinyl response
+      this.srcNode.playbackRate.setTargetAtTime(Math.max(-4, Math.min(4, speed)), this.ctx.currentTime, 0.02);
+    }
+  }
+
+  updateFilters() {
+    if (!this.ctx) return;
+    this.filterLow.gain.value = this.killLow ? -70 : this.gainLow;
+    this.filterMid.gain.value = this.killMid ? -70 : this.gainMid;
+    this.filterHigh.gain.value = this.killHigh ? -70 : this.gainHigh;
+  }
+}
+
+const deckA = new AudioDeck('DECK A', '#00e5ff');
+const deckB = new AudioDeck('DECK B', '#ff0055');
+
+let masterGain = null;
+let crossfaderPos = 0;
+let crossfaderCurve = 'smooth';
+
+function initAudioSystem() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.connect(audioCtx.destination);
+
+  deckA.initAudio(audioCtx, masterGain);
+  deckB.initAudio(audioCtx, masterGain);
+
+  document.getElementById('audioStatusBadge').textContent = 'AUDIO ENGINE ONLINE (44.1kHz)';
+  document.getElementById('audioStatusBadge').style.background = '#0969da';
+  updateCrossfader();
+}
+
+function updateCrossfader() {
+  let t = (crossfaderPos + 1.0) * 0.5;
+  let gainA = 0, gainB = 0;
+
+  if (crossfaderCurve === 'linear') {
+    gainA = 1 - t;
+    gainB = t;
+  } else if (crossfaderCurve === 'smooth') {
+    const angle = t * (Math.PI / 2);
+    gainA = Math.cos(angle);
+    gainB = Math.sin(angle);
+  } else if (crossfaderCurve === 'scratch_cut') {
+    gainA = t >= 0.95 ? (1 - t) / 0.05 : 1.0;
+    gainB = t <= 0.05 ? t / 0.05 : 1.0;
+  }
+
+  if (deckA.deckGain) deckA.deckGain.gain.setTargetAtTime(gainA, audioCtx.currentTime, 0.01);
+  if (deckB.deckGain) deckB.deckGain.gain.setTargetAtTime(gainB, audioCtx.currentTime, 0.01);
+}
+
+// Attach Touch / Scratch Interactivity to Platter
+function setupPlatter(platterEl, deck) {
+  let rect = null;
+
+  function getAngle(e) {
+    rect = platterEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return Math.atan2(clientY - cy, clientX - cx);
+  }
+
+  function onStart(e) {
+    initAudioSystem();
+    deck.isDragging = true;
+    deck.isInertia = false;
+    deck.lastPointerAngle = getAngle(e);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchend', onEnd);
+  }
+
+  function onMove(e) {
+    if (!deck.isDragging) return;
+    if (e.cancelable) e.preventDefault();
+    const currentAngle = getAngle(e);
+    let delta = currentAngle - deck.lastPointerAngle;
+
+    // Handle wrap-around
+    if (delta > Math.PI) delta -= 2 * Math.PI;
+    if (delta < -Math.PI) delta += 2 * Math.PI;
+
+    deck.angle += delta;
+    deck.scratchVelocity = delta * 12.0; // Scratch velocity scaling
+    deck.lastPointerAngle = currentAngle;
+    deck.updatePlaybackRate(deck.scratchVelocity);
+  }
+
+  function onEnd() {
+    deck.isDragging = false;
+    deck.isInertia = true;
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('touchmove', onMove);
+    window.removeEventListener('mouseup', onEnd);
+    window.removeEventListener('touchend', onEnd);
+  }
+
+  platterEl.addEventListener('mousedown', onStart);
+  platterEl.addEventListener('touchstart', onStart, { passive: false });
+}
+
+setupPlatter(document.getElementById('turntableA'), deckA);
+setupPlatter(document.getElementById('turntableB'), deckB);
+
+// Wire Play / Cue Buttons
+function setupDeckButtons(deck, playBtnId, cueBtnId) {
+  const playBtn = document.getElementById(playBtnId);
+  const cueBtn = document.getElementById(cueBtnId);
+
+  playBtn.addEventListener('click', () => {
+    initAudioSystem();
+    if (deck.isPlaying) {
+      deck.pausePlayback();
+      playBtn.classList.remove('playing');
+      playBtn.textContent = 'PLAY';
+    } else {
+      deck.startPlayback();
+      playBtn.classList.add('playing');
+      playBtn.textContent = 'PAUSE';
+    }
+  });
+
+  cueBtn.addEventListener('click', () => {
+    initAudioSystem();
+    deck.pausePlayback();
+    playBtn.classList.remove('playing');
+    playBtn.textContent = 'PLAY';
+    deck.angle = 0;
+  });
+}
+
+setupDeckButtons(deckA, 'playBtnA', 'cueBtnA');
+setupDeckButtons(deckB, 'playBtnB', 'cueBtnB');
+
+// Wire Pitch Sliders
+document.getElementById('rateSliderA').addEventListener('input', (e) => {
+  deckA.rate = 1.0 + parseFloat(e.target.value);
+  document.getElementById('rateLabelA').textContent = `${(parseFloat(e.target.value) * 100).toFixed(1)}%`;
+  if (!deckA.isDragging && !deckA.isInertia) deckA.updatePlaybackRate(deckA.rate);
+});
+
+document.getElementById('rateSliderB').addEventListener('input', (e) => {
+  deckB.rate = 1.0 + parseFloat(e.target.value);
+  document.getElementById('rateLabelB').textContent = `${(parseFloat(e.target.value) * 100).toFixed(1)}%`;
+  if (!deckB.isDragging && !deckB.isInertia) deckB.updatePlaybackRate(deckB.rate);
+});
+
+// Wire EQ Knobs and Kill Buttons
+function wireEq(sliderId, killId, deck, prop, killProp) {
+  const slider = document.getElementById(sliderId);
+  const killBtn = document.getElementById(killId);
+
+  slider.addEventListener('input', (e) => {
+    deck[prop] = parseFloat(e.target.value);
+    deck.updateFilters();
+  });
+
+  killBtn.addEventListener('click', () => {
+    deck[killProp] = !deck[killProp];
+    killBtn.classList.toggle('active', deck[killProp]);
+    deck.updateFilters();
+  });
+}
+
+wireEq('eqLowA', 'killLowA', deckA, 'gainLow', 'killLow');
+wireEq('eqMidA', 'killMidA', deckA, 'gainMid', 'killMid');
+wireEq('eqHighA', 'killHighA', deckA, 'gainHigh', 'killHigh');
+
+// Wire Crossfader
+const xfader = document.getElementById('xfader');
+const xfaderVal = document.getElementById('xfaderVal');
+xfader.addEventListener('input', (e) => {
+  crossfaderPos = parseFloat(e.target.value);
+  if (crossfaderPos < -0.05) xfaderVal.textContent = 'DECK A';
+  else if (crossfaderPos > 0.05) xfaderVal.textContent = 'DECK B';
+  else xfaderVal.textContent = 'CENTER';
+  updateCrossfader();
+});
+
+document.getElementById('curveSelect').addEventListener('change', (e) => {
+  crossfaderCurve = e.target.value;
+  updateCrossfader();
+});
+
+// 60FPS Animation Loop (Vinyl Rotation & Scrolling Waveforms)
+const canvasA = document.getElementById('waveformA');
+const ctxA = canvasA.getContext('2d');
+const canvasB = document.getElementById('waveformB');
+const ctxB = canvasB.getContext('2d');
+const platterElA = document.getElementById('platterA');
+const platterElB = document.getElementById('platterB');
+
+let waveOffsetA = 0;
+let waveOffsetB = 0;
+
+function drawWaveform(ctx, canvas, color, offset) {
+  ctx.fillStyle = '#090b0e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const midY = canvas.height / 2;
+  const barWidth = 3;
+  const numBars = canvas.width / barWidth;
+
+  for (let i = 0; i < numBars; i++) {
+    const x = i * barWidth;
+    const waveT = (i + offset) * 0.15;
+    
+    // Frequency bands (Bass = Red, Mid = Green, High = Blue)
+    const bass = (Math.sin(waveT * 0.5) + 1) * 0.5;
+    const mid = (Math.sin(waveT * 1.8) + 1) * 0.5;
+    const high = (Math.cos(waveT * 4.2) + 1) * 0.5;
+
+    const totalAmp = (bass * 0.5 + mid * 0.35 + high * 0.15) * (midY - 4);
+
+    // Color gradient based on frequency mix
+    ctx.fillStyle = `rgb(${Math.floor(bass * 255)}, ${Math.floor(mid * 200)}, ${Math.floor(high * 255)})`;
+    ctx.fillRect(x, midY - totalAmp, barWidth - 1, totalAmp * 2);
+  }
+
+  // Playhead line
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(canvas.width / 2, 0);
+  ctx.lineTo(canvas.width / 2, canvas.height);
+  ctx.stroke();
+}
+
+function updateLoop() {
+  [deckA, deckB].forEach((d, idx) => {
+    const platterEl = idx === 0 ? platterElA : platterElB;
+
+    if (d.isDragging) {
+      // Rotating from touch
+    } else if (d.isInertia) {
+      d.angle += d.scratchVelocity * 0.05;
+      d.scratchVelocity *= 0.92; // Friction decay
+      d.updatePlaybackRate(d.scratchVelocity);
+      if (Math.abs(d.scratchVelocity) < 0.02) {
+        d.isInertia = false;
+        d.updatePlaybackRate(d.isPlaying ? d.rate : 0);
+      }
+    } else if (d.isPlaying) {
+      d.angle += 0.035 * d.rate;
+    }
+
+    platterEl.style.transform = `rotate(${d.angle}rad)`;
+  });
+
+  if (deckA.isPlaying || deckA.isDragging) waveOffsetA += (deckA.isPlaying ? 1.5 * deckA.rate : 0);
+  if (deckB.isPlaying || deckB.isDragging) waveOffsetB += (deckB.isPlaying ? 1.5 * deckB.rate : 0);
+
+  drawWaveform(ctxA, canvasA, '#00e5ff', waveOffsetA);
+  drawWaveform(ctxB, canvasB, '#ff0055', waveOffsetB);
+
+  requestAnimationFrame(updateLoop);
+}
+
+requestAnimationFrame(updateLoop);
+</script>
+</body>
+</html>

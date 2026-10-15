@@ -1,0 +1,75 @@
+name: DJ Console CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 1. DSP Mathematics & Filter Verification
+  dsp-verify:
+    name: Verify DSP Math & Curves
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run DSP Math Regression Tests
+        run: node test/dsp_math_test.js
+
+  # 2. C++ Native Engine Build
+  native-build:
+    name: Compile C++ Audio Engine
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install CMake & Ninja
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang
+
+      - name: Configure CMake
+        run: cmake -B build -S native -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Native Shared Library
+        run: cmake --build build --config Release
+
+  # 3. Flutter Mobile Build & Artifact Assembly
+  flutter-build:
+    name: Build Mobile Applications (Android & iOS)
+    needs: [ dsp-verify, native-build ]
+    runs-on: macos-14
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart Code
+        run: flutter analyze
+
+      - name: Build Android App Bundle (AAB) for Play Store
+        run: flutter build appbundle --release --no-pub
+
+      - name: Build iOS No-Codesign Archive for App Store
+        run: flutter build ios --release --no-codesign --no-pub
+
+      - name: Upload Android Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.aab
+          path: build/app/outputs/bundle/release/app-release.aab
